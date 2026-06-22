@@ -1,0 +1,42 @@
+{
+  "name": "trea-gamepad",
+  "version": "1.0.0",
+  "description": "Xbox 手柄硬件审批 MCP Server — Agent 高危操作前需物理按键确认",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "mcp-hardware-approval": "./dist/index.js"
+  },
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.ps1",
+    "dist/**/*.wav",
+    "dist/**/*.html"
+  ],
+  "scripts": {
+    "build": "tsc && node --input-type=module -e \"import{cpSync,copyFileSync,mkdirSync}from'fs';cpSync('src/public','dist/public',{recursive:true});copyFileSync('src/gamepad.ps1','dist/gamepad.ps1');copyFileSync('src/approve.wav','dist/approve.wav')\"",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "daemon": "tsx src/daemon.ts"
+  },
+  "keywords": [
+    "mcp",
+    "hardware-approval",
+    "xbox-controller",
+    "security",
+    "agent-permission"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "express": "^4.19.2",
+    "open": "^10.1.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0"
+  }
+}

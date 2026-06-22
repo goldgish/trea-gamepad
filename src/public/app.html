@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>手柄审批</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f0f0f;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex; justify-content: center; align-items: center;
+      padding: 16px;
+    }
+
+    /* ---- 空闲状态 ---- */
+    .idle-state { text-align: center; }
+    .idle-state .icon { font-size: 52px; margin-bottom: 12px; }
+    .idle-state h2 { font-size: 16px; color: #888; font-weight: 400; }
+    .idle-state .dot { display: inline-block; width: 8px; height: 8px;
+      border-radius: 50%; background: #22c55e; margin-right: 6px;
+      animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    /* ---- 请求卡片 ---- */
+    .request-card {
+      background: #1a1a1a; border: 1px solid #f59e0b;
+      border-radius: 10px; padding: 20px; max-width: 440px; width: 100%;
+      animation: slideUp 0.25s ease-out;
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .request-card h1 { font-size: 17px; color: #fff; margin-bottom: 4px; }
+    .request-card .sub { font-size: 12px; color: #888; margin-bottom: 16px; }
+
+    .field { margin-bottom: 12px; }
+    .field .label { font-size: 10px; color: #555; text-transform: uppercase;
+      letter-spacing: 0.4px; margin-bottom: 2px; }
+    .field .value { font-size: 13px; color: #ddd;
+      font-family: 'Cascadia Code', 'Fira Code', monospace; word-break: break-all; }
+
+    .risk-tag {
+      display: inline-block; padding: 2px 8px; border-radius: 3px;
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+    }
+    .risk-low    { background: #064e3b; color: #6ee7b7; }
+    .risk-medium { background: #5c4a00; color: #fde047; }
+    .risk-high   { background: #5c1a00; color: #fdba74; }
+    .risk-critical { background: #450a0a; color: #fca5a5; }
+
+    /* ---- 手柄区域 ---- */
+    .gp-area {
+      background: #1e1e1e; border: 2px dashed #333;
+      border-radius: 10px; padding: 20px; margin-top: 16px;
+      transition: border-color 0.3s, background 0.3s;
+    }
+    .gp-area.connected { border-color: #107c10; background: #0a2a0a; }
+    .gp-area.held      { border-color: #22c55e; background: #0a2a0a; }
+    .gp-icon { text-align: center; font-size: 40px; margin-bottom: 8px; }
+    .gp-status { text-align: center; font-size: 12px; color: #888; margin-bottom: 12px; }
+
+    .combo { display: flex; justify-content: center; align-items: center; gap: 10px; }
+    .btn-ind {
+      width: 48px; height: 48px; border-radius: 50%;
+      border: 2px solid #555; display: flex; align-items: center;
+      justify-content: center; font-size: 18px; font-weight: 700;
+      transition: all 0.1s; color: #555; background: #1a1a1a;
+    }
+    .btn-ind.active {
+      border-color: #3b82f6; color: #3b82f6;
+      box-shadow: 0 0 16px rgba(59,130,246,0.4); background: #0a1a3a;
+    }
+    .btn-ind.approve {
+      border-color: #22c55e; color: #fff;
+      box-shadow: 0 0 20px rgba(34,197,94,0.5); background: #22c55e;
+    }
+    .btn-ind.reject {
+      border-color: #ef4444; color: #fff;
+      box-shadow: 0 0 20px rgba(239,68,68,0.5); background: #ef4444;
+    }
+    .btn-ind.pressed {
+      border-color: #3b82f6; color: #3b82f6;
+      box-shadow: 0 0 12px rgba(59,130,246,0.3); background: #0a1a3a;
+    }
+
+    .hint-text { font-size: 13px; color: #888; text-align: center; margin-top: 14px; line-height: 1.6; }
+    .hint-text strong.approve { color: #4ade80; }
+    .hint-text strong.reject { color: #f87171; }
+  </style>
+</head>
+<body>
+
+<!-- ========== 空闲状态 ========== -->
+<div id="idleView" class="idle-state">
+  <div class="icon">&#127918;</div>
+  <h2><span class="dot"></span> 手柄审批就绪，等待请求</h2>
+</div>
+
+<!-- ========== 注册状态 ========== -->
+<div id="registerView" style="display:none;width:100%;max-width:440px;">
+  <div class="request-card" style="border-color:#3b82f6;">
+    <h1>注册 Xbox 手柄</h1>
+    <p class="sub">首次使用，请按下 A 键确认手柄连接</p>
+
+    <div class="gp-area" id="regGpArea">
+      <div class="gp-icon" id="regGpIcon">&#127918;</div>
+      <div class="gp-status" id="regGpStatus">正在检测手柄...</div>
+      <div class="combo">
+        <div class="btn-ind" id="regBtnA">A</div>
+        <div class="btn-ind" id="regBtnB">B</div>
+        <div class="btn-ind" id="regBtnX">X</div>
+        <div class="btn-ind" id="regBtnY">Y</div>
+      </div>
+      <div class="hint-text">按下 <strong>A 键</strong> 完成注册</div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 审批状态 ========== -->
+<div id="approveView" style="display:none;width:100%;max-width:440px;">
+  <div class="request-card">
+    <h1>&#9888;&#65039; 高危操作需要手柄确认</h1>
+    <p class="sub">Agent 请求执行以下操作</p>
+
+    <div class="field"><div class="label">操作</div>
+      <div class="value" id="reqAction">-</div></div>
+    <div class="field"><div class="label">目标</div>
+      <div class="value" id="reqTarget">-</div></div>
+    <div class="field"><div class="label">风险等级</div>
+      <div><span class="risk-tag" id="reqRisk">-</span></div></div>
+    <div class="field"><div class="label">摘要</div>
+      <div class="value" id="reqSummary">-</div></div>
+
+    <div class="gp-area connected" id="appGpArea">
+      <div class="gp-icon">&#127918;</div>
+      <div class="gp-status" id="appGpStatus">等待手柄确认...</div>
+      <div class="hint-text" id="appHint">
+        <strong class="approve">A 键</strong> 批准 &nbsp;&nbsp;|&nbsp;&nbsp; <strong class="reject">B 键</strong> 驳回
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const DAEMON = "http://localhost:24591";
+
+  // ---- DOM ----
+  const idleView    = document.getElementById("idleView");
+  const registerView = document.getElementById("registerView");
+  const approveView = document.getElementById("approveView");
+
+  // 注册元素
+  const regGpArea = document.getElementById("regGpArea");
+  const regGpIcon = document.getElementById("regGpIcon");
+  const regGpStatus = document.getElementById("regGpStatus");
+  const regBtnA = document.getElementById("regBtnA");
+  const regBtnB = document.getElementById("regBtnB");
+  const regBtnX = document.getElementById("regBtnX");
+  const regBtnY = document.getElementById("regBtnY");
+
+  // 审批显示元素
+  const appGpStatus = document.getElementById("appGpStatus");
+  const appHint = document.getElementById("appHint");
+
+  // ---- 状态 ----
+  let currentMode = "idle";
+  let currentRequestId = "";
+  let resolved = false;
+
+  function showView(mode) {
+    currentMode = mode;
+    idleView.style.display    = mode === "idle"     ? "" : "none";
+    registerView.style.display = mode === "register" ? "" : "none";
+    approveView.style.display  = mode === "approve"  ? "" : "none";
+  }
+
+  // ========== 手柄检测（仅用于注册）==========
+  function findGamepad() {
+    const gps = navigator.getGamepads();
+    for (const gp of gps) {
+      if (gp && (gp.id.includes("Xbox") || gp.id.includes("xinput") || gp.mapping === "standard")) {
+        return gp;
+      }
+    }
+    return null;
+  }
+
+  // ========== 音效（Web Audio API）==========
+  let audioCtx = null;
+  function getAudioCtx() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    return audioCtx;
+  }
+
+  function playApproveSound() {
+    const ctx = getAudioCtx();
+    const t = ctx.currentTime;
+    const g = ctx.createGain();
+    g.connect(ctx.destination);
+    g.gain.setValueAtTime(0.3, t);
+    g.gain.exponentialRampToValueAtTime(0.01, t + 0.25);
+    const osc = ctx.createOscillator(); osc.type = "sine";
+    osc.frequency.setValueAtTime(1047, t);
+    osc.frequency.setValueAtTime(1318, t + 0.06);
+    osc.connect(g); osc.start(t); osc.stop(t + 0.25);
+  }
+
+  // ========== 注册轮询 ==========
+  function pollRegister() {
+    if (currentMode !== "register") { requestAnimationFrame(pollRegister); return; }
+    const gp = findGamepad();
+    if (!gp) {
+      regGpArea.className = "gp-area";
+      regGpIcon.textContent = "\uD83C\uDFAE";
+      regGpStatus.textContent = "未检测到 Xbox 手柄";
+      [regBtnA, regBtnB, regBtnX, regBtnY].forEach(b => b.className = "btn-ind");
+      requestAnimationFrame(pollRegister);
+      return;
+    }
+    regGpArea.className = "gp-area connected";
+    regGpIcon.textContent = "\uD83C\uDFAE";
+    regGpStatus.textContent = `已连接: ${gp.id}`;
+
+    const a = gp.buttons[0]?.pressed || false;
+    regBtnA.className = a ? "btn-ind approve" : "btn-ind";
+    if (a && !resolved) {
+      resolved = true;
+      playApproveSound();
+      fetch(`${DAEMON}/api/register-done/${currentRequestId}`, { method: "POST" });
+      regGpStatus.textContent = "注册成功！";
+      setTimeout(() => showView("idle"), 1500);
+    }
+    requestAnimationFrame(pollRegister);
+  }
+
+  // ========== SSE 事件处理 ==========
+  function connectSSE() {
+    const es = new EventSource(`${DAEMON}/api/events`);
+
+    es.addEventListener("register-request", (e) => {
+      const { requestId } = JSON.parse(e.data);
+      currentRequestId = requestId;
+      resolved = false;
+      showView("register");
+    });
+
+    es.addEventListener("approval-request", (e) => {
+      const data = JSON.parse(e.data);
+      currentRequestId = data.requestId;
+      resolved = false;
+
+      document.getElementById("reqAction").textContent  = data.action;
+      document.getElementById("reqTarget").textContent  = data.target;
+      document.getElementById("reqSummary").textContent = data.summary;
+      const tag = document.getElementById("reqRisk");
+      tag.className = `risk-tag risk-${data.riskLevel}`;
+      tag.textContent = data.riskLevel.toUpperCase();
+
+      appGpStatus.textContent = "手柄已震动，等待按键确认...";
+      appHint.innerHTML = '<strong class="approve">A 键</strong> 批准 &nbsp;&nbsp;|&nbsp;&nbsp; <strong class="reject">B 键</strong> 驳回';
+
+      showView("approve");
+
+      // 浏览器通知（权限已提前请求）
+      if (Notification.permission === "granted") {
+        new Notification("手柄审批", {
+          body: `${data.action}: ${data.summary}`,
+          requireInteraction: true,
+          silent: false,
+        });
+      }
+    });
+
+    es.addEventListener("approval-resolved", (e) => {
+      const { result } = JSON.parse(e.data);
+      if (result === "approved") {
+        appGpStatus.textContent = "已批准！";
+        appHint.innerHTML = '<span style="color:#4ade80;">&#10003; 操作已批准</span>';
+      } else if (result === "rejected") {
+        appGpStatus.textContent = "已驳回";
+        appHint.innerHTML = '<span style="color:#f87171;">&#10007; 操作已驳回</span>';
+      } else {
+        appGpStatus.textContent = result === "timeout" ? "审批超时" : "手柄断开";
+        appHint.innerHTML = '<span style="color:#888;">审批未完成</span>';
+      }
+      setTimeout(() => showView("idle"), 2000);
+    });
+
+    es.onerror = () => { setTimeout(connectSSE, 5000); };
+  }
+
+  // ========== 启动 ==========
+  showView("idle");
+
+  // 提前请求通知权限
+  document.addEventListener("click", () => {
+    if (Notification.permission === "default") Notification.requestPermission();
+  }, { once: true });
+
+  connectSSE();
+  pollRegister();
+</script>
+</body>
+</html>
